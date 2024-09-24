@@ -3,7 +3,7 @@ import requests
 
 app = Flask(__name__)
 
-DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/your_webhook_id/your_webhook_token'
+DISCORD_WEBHOOK_URL = 'https://discordapp.com/api/webhooks/1287448411985154088/X1Wnq7QgNeXPmTcsiRYr2wHtdlAmoj9dMcdjSW_h346V9v3jP-dq12vzW9uWJ6vJkMbp'
 
 @app.route('/log_ip', methods=['POST'])
 def log_ip():
