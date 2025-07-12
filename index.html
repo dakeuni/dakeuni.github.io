@@ -1,34 +1,278 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>장인서 바보</title>
-    <style>
-        body {
-            background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            font-family: Arial, sans-serif;
-            color: white;
-            text-align: center;
-        }
-        h1 {
-            margin: 0;
-            font-size: 3em;
-        }
-        p {
-            margin: 10px 0 0;
-            font-size: 1.5em;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rich-Store 서비스 플랫폼</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
 </head>
-<body>
-    <h1>장인서</h1>
-    <p>장인서는 바보다 : 장인서는 내 아빠다 여름이는 내 엄마다</p>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+  <div id="root"></div>
+  <script type="text/babel">
+    const getLocalData = (key, defaultValue) => {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : defaultValue;
+    };
+    const setLocalData = (key, value) => {
+      localStorage.setItem(key, JSON.stringify(value));
+    };
+
+    function App() {
+      const [services, setServices] = React.useState(() => getLocalData("services", []));
+      const [categories, setCategories] = React.useState(() => getLocalData("categories", []));
+      const [search, setSearch] = React.useState("");
+      const [filter, setFilter] = React.useState("all");
+      const [isAdmin, setIsAdmin] = React.useState(false);
+      const [loginModal, setLoginModal] = React.useState(false);
+      const [selected, setSelected] = React.useState(null);
+      const [editing, setEditing] = React.useState(null);
+      const [loginCode, setLoginCode] = React.useState(null);
+      const [codeSentAt, setCodeSentAt] = React.useState(null);
+      const [theme, setTheme] = React.useState(() => getLocalData("theme", "light")); // 테마 상태 추가
+
+      const WEBHOOK_URL = "https://discord.com/api/webhooks/1393456540899348551/rg9qYJfRf98VSX4LqK0swHGu3vOZ8m_Qe27ooubs4ypPkmHeXVFNCoTSPFOm11omHmR-";
+
+      // 테마 토글 함수
+      const toggleTheme = () => {
+        const newTheme = theme === 'light' ? 'dark' : 'light';
+        setTheme(newTheme);
+        document.documentElement.classList.remove(theme);
+        document.documentElement.classList.add(newTheme);
+      };
+
+      React.useEffect(() => {
+        setLocalData("services", services);
+      }, [services]);
+      React.useEffect(() => {
+        setLocalData("categories", categories);
+      }, [categories]);
+      React.useEffect(() => {
+        setLocalData("theme", theme);
+        document.documentElement.classList.add(theme);
+      }, [theme]);
+
+      const sendLoginCode = async () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const code = Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        setLoginCode(code);
+        setCodeSentAt(Date.now());
+
+        await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: `🔐 **[Boost 로그인 코드]**\n1회용 관리자 코드: \`${code}\`\n※ 3분 이내에 입력하세요.`,
+          })
+        });
+        alert("✅ 디스코드로 로그인 코드가 전송되었습니다.");
+      };
+
+      const handleLogin = () => {
+        const input = document.getElementById("otp")?.value.trim();
+        if (!input) return alert("코드를 입력하세요.");
+        if (!loginCode) return alert("먼저 코드 요청을 해주세요.");
+        if (Date.now() - codeSentAt > 3 * 60 * 1000) return alert("⏰ 코드가 만료되었습니다. 다시 시도해주세요.");
+
+        if (input === loginCode) {
+          setIsAdmin(true);
+          setLoginModal(false);
+          setLoginCode(null);
+          setCodeSentAt(null);
+          alert("✅ 관리자 로그인 완료");
+        } else {
+          alert("❌ 코드가 일치하지 않습니다.");
+        }
+      };
+
+      const handleLogout = () => {
+        setIsAdmin(false);
+        setLoginCode(null);
+        setCodeSentAt(null);
+        setLoginModal(false);
+        alert("✅ 로그아웃되었습니다.");
+      };
+
+      const addOrUpdate = (svc) => {
+        setServices(prev => prev.some(p => p.id === svc.id) ? prev.map(p => p.id === svc.id ? svc : p) : [...prev, svc]);
+      };
+
+      const deleteService = id => {
+        if (confirm("정말 삭제하시겠습니까?")) {
+          setServices(prev => prev.filter(s => s.id !== id));
+        }
+      };
+
+      const ServiceCard = ({ svc }) => (
+        <div onClick={() => setSelected(svc)} className="cursor-pointer bg-white dark:bg-gray-800 rounded shadow hover:ring hover:ring-blue-200 dark:hover:ring-blue-400 transition">
+          <img src={svc.image} alt={svc.title} className="h-48 w-full object-cover" />
+          <div className="p-4">
+            <h3 className="text-lg font-semibold">{svc.title}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{svc.desc}</p>
+            <div className="mt-2 text-blue-600 dark:text-blue-400 font-bold text-sm">{svc.price.toLocaleString()}원</div>
+          </div>
+        </div>
+      );
+
+      const ServiceDetail = ({ svc }) => (
+        <div className="max-w-3xl mx-auto p-4">
+          <button onClick={() => setSelected(null)} className="mb-4 text-blue-600 hover:underline text-sm">← 목록으로 돌아가기</button>
+          <div className="bg-white dark:bg-gray-800 rounded shadow p-4 flex flex-col md:flex-row gap-6">
+            <img src={svc.image} alt={svc.title} className="w-full md:w-1/2 rounded object-cover" />
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-2">{svc.title}</h2>
+              <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm">{svc.desc}</p>
+              <div className="text-xl text-blue-600 dark:text-blue-400 font-semibold">{svc.price.toLocaleString()}원</div>
+              <button className="mt-6 w-full bg-blue-600 text-white py-3 rounded hover:bg-blue-700">구매하기</button>
+            </div>
+          </div>
+        </div>
+      );
+
+      const ServiceForm = ({ svc }) => {
+        const [title, setTitle] = React.useState(svc?.title || "");
+        const [desc, setDesc] = React.useState(svc?.desc || "");
+        const [price, setPrice] = React.useState(svc?.price || "");
+        const [image, setImage] = React.useState(svc?.image || "");
+        const [category, setCategory] = React.useState(svc?.category || categories[0] || "");
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <form onSubmit={e => {
+              e.preventDefault();
+              addOrUpdate({ id: svc?.id || Date.now(), title, desc, price: Number(price), image, category });
+              setEditing(null);
+            }} className="bg-white dark:bg-gray-800 p-6 rounded shadow w-96">
+              <h2 className="text-xl font-bold mb-4">{svc ? "서비스 수정" : "서비스 추가"}</h2>
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required/>
+              <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="설명" className="w-full p-2 mb-2 border rounded h-24 dark:bg-gray-800 dark:text-white dark:border-gray-600" required />
+              <input value={price} type="number" onChange={e => setPrice(e.target.value)} placeholder="가격" className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required/>
+              <input value={image} onChange={e => setImage(e.target.value)} placeholder="이미지 URL" className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required/>
+              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required>
+                {categories.length > 0 ? (
+                  categories.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                ) : (
+                  <option value="" disabled>카테고리가 없습니다</option>
+                )}
+              </select>
+              <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={() => setEditing(null)} className="px-3 py-2 border rounded">취소</button>
+                <button type="submit" className="px-3 py-2 bg-blue-600 text-white rounded">저장</button>
+              </div>
+            </form>
+          </div>
+        );
+      };
+
+      const AdminPanel = () => {
+        const [newCat, setNewCat] = React.useState("");
+        return (
+          <div className="mb-4">
+            <h3 className="font-semibold mb-2">[관리자] 카테고리 관리</h3>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {categories.map(cat => (
+                <div key={cat} className="bg-gray-200 dark:bg-gray-700 text-black dark:text-white px-3 py-1 rounded flex items-center">
+                  {cat}
+                  <button onClick={() => setCategories(categories.filter(c => c !== cat))} className="ml-2 text-red-500">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input value={newCat} onChange={e => setNewCat(e.target.value)} className="p-2 border rounded w-48 dark:bg-gray-800 dark:text-white dark:border-gray-600" placeholder="새 카테고리명"/>
+              <button onClick={() => { if (newCat && !categories.includes(newCat)) { setCategories([...categories, newCat]); setNewCat(""); }}} className="bg-green-500 text-white px-3 py-2 rounded">추가</button>
+            </div>
+          </div>
+        );
+      };
+
+      const filtered = services.filter(s =>
+        (s.title + s.desc).toLowerCase().includes(search.toLowerCase()) &&
+        (filter === "all" || s.category === filter)
+      );
+
+      return (
+        <div className="max-w-6xl mx-auto p-4">
+          <header className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">Boost 서비스 플랫폼</h1>
+            <div className="flex gap-2 items-center">
+              <button onClick={toggleTheme} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300">
+                {theme === 'light' ? '🌙 다크 모드' : '☀️ 라이트 모드'}
+              </button>
+              <button
+                onClick={isAdmin ? handleLogout : () => setLoginModal(true)}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300"
+              >
+                {isAdmin ? "로그아웃" : "관리자 로그인"}
+              </button>
+            </div>
+          </header>
+
+          {selected ? (
+            <ServiceDetail svc={selected} />
+          ) : (
+            <>
+              {isAdmin && <AdminPanel />}
+              <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <input placeholder="검색어 입력" value={search} onChange={e => setSearch(e.target.value)} className="p-3 rounded border w-full sm:w-2/3 dark:bg-gray-800 dark:text-white dark:border-gray-600" />
+                <select value={filter} onChange={e => setFilter(e.target.value)} className="p-3 rounded border w-full sm:w-1/3 dark:bg-gray-800 dark:text-white dark:border-gray-600">
+                  <option value="all">전체 카테고리</option>
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {isAdmin && (
+                <button onClick={() => setEditing({})} className="mb-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">서비스 추가</button>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {filtered.map(svc => (
+                  <div key={svc.id} className="relative">
+                    <ServiceCard svc={svc} />
+                    {isAdmin && (
+                      <div className="absolute top-2 right-2 space-x-1">
+                        <button onClick={() => setEditing(svc)} className="text-xs text-white bg-blue-600 px-2 py-1 rounded">수정</button>
+                        <button onClick={() => deleteService(svc.id)} className="text-xs text-white bg-red-500 px-2 py-1 rounded">삭제</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {filtered.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 col-span-full">검색 결과가 없습니다.</p>}
+              </div>
+            </>
+          )}
+
+          {editing && <ServiceForm svc={editing} />}
+
+          {loginModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-lg w-80">
+                <h2 className="text-xl font-bold mb-4 text-center">관리자 로그인</h2>
+                {!loginCode ? (
+                  <button onClick={sendLoginCode} className="w-full px-4 py-2 bg-blue-600 text-white rounded">🔐 디스코드로 코드 받기</button>
+                ) : (
+                  <>
+                    <input id="otp" placeholder="코드 입력" className="w-full p-2 mb-4 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setLoginModal(false); setLoginCode(null); setCodeSentAt(null); }} className="px-4 py-2 border rounded">취소</button>
+                      <button onClick={handleLogin} className="px-4 py-2 bg-blue-600 text-white rounded">로그인</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
 </body>
 </html>
