@@ -1,278 +1,691 @@
 <!DOCTYPE html>
 <html lang="ko" class="light">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Rich-Store 서비스 플랫폼</title>
-  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-    }
-  </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Rich-Store 서비스 플랫폼</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
-  <div id="root"></div>
-  <script type="text/babel">
-    const getLocalData = (key, defaultValue) => {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : defaultValue;
-    };
-    const setLocalData = (key, value) => {
-      localStorage.setItem(key, JSON.stringify(value));
-    };
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 antialiased">
+    <div id="root"></div>
 
-    function App() {
-      const [services, setServices] = React.useState(() => getLocalData("services", []));
-      const [categories, setCategories] = React.useState(() => getLocalData("categories", []));
-      const [search, setSearch] = React.useState("");
-      const [filter, setFilter] = React.useState("all");
-      const [isAdmin, setIsAdmin] = React.useState(false);
-      const [loginModal, setLoginModal] = React.useState(false);
-      const [selected, setSelected] = React.useState(null);
-      const [editing, setEditing] = React.useState(null);
-      const [loginCode, setLoginCode] = React.useState(null);
-      const [codeSentAt, setCodeSentAt] = React.useState(null);
-      const [theme, setTheme] = React.useState(() => getLocalData("theme", "light")); // 테마 상태 추가
+    <script type="text/babel">
+        // 로컬 스토리지 데이터 관리 유틸리티
+        const getLocalData = (key, defaultValue) => {
+            try {
+                const saved = localStorage.getItem(key);
+                return saved ? JSON.parse(saved) : defaultValue;
+            } catch (e) {
+                console.error(`Error loading from localStorage for key "${key}":`, e);
+                return defaultValue;
+            }
+        };
 
-      const WEBHOOK_URL = "https://discord.com/api/webhooks/1393456540899348551/rg9qYJfRf98VSX4LqK0swHGu3vOZ8m_Qe27ooubs4ypPkmHeXVFNCoTSPFOm11omHmR-";
+        const setLocalData = (key, value) => {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (e) {
+                console.error(`Error saving to localStorage for key "${key}":`, e);
+            }
+        };
 
-      // 테마 토글 함수
-      const toggleTheme = () => {
-        const newTheme = theme === 'light' ? 'dark' : 'light';
-        setTheme(newTheme);
-        document.documentElement.classList.remove(theme);
-        document.documentElement.classList.add(newTheme);
-      };
+        // 메인 애플리케이션 컴포넌트
+        function App() {
+            // 상태 관리
+            const [services, setServices] = React.useState(() => getLocalData("services", []));
+            const [categories, setCategories] = React.useState(() => getLocalData("categories", []));
+            const [search, setSearch] = React.useState("");
+            const [filter, setFilter] = React.useState("all");
+            const [isAdmin, setIsAdmin] = React.useState(false);
+            const [loginModalOpen, setLoginModalOpen] = React.useState(false);
+            const [selectedService, setSelectedService] = React.useState(null); // 상세 보기 서비스
+            const [editingService, setEditingService] = React.useState(null); // 수정/추가할 서비스
+            const [loginCode, setLoginCode] = React.useState(null);
+            const [codeSentAt, setCodeSentAt] = React.useState(null);
+            const [theme, setTheme] = React.useState(() => getLocalData("theme", "light"));
+            const [webhookUrl, setWebhookUrl] = React.useState(() => getLocalData("webhookUrl", ""));
 
-      React.useEffect(() => {
-        setLocalData("services", services);
-      }, [services]);
-      React.useEffect(() => {
-        setLocalData("categories", categories);
-      }, [categories]);
-      React.useEffect(() => {
-        setLocalData("theme", theme);
-        document.documentElement.classList.add(theme);
-      }, [theme]);
+            // 테마 토글 함수
+            const toggleTheme = () => {
+                const newTheme = theme === 'light' ? 'dark' : 'light';
+                setTheme(newTheme);
+                document.documentElement.classList.remove(theme);
+                document.documentElement.classList.add(newTheme);
+            };
 
-      const sendLoginCode = async () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        const code = Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-        setLoginCode(code);
-        setCodeSentAt(Date.now());
+            // 초기 로드 시 테마 적용 및 로컬 스토리지 동기화
+            React.useEffect(() => {
+                document.documentElement.classList.add(theme);
+            }, [theme]);
 
-        await fetch(WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: `🔐 **[Boost 로그인 코드]**\n1회용 관리자 코드: \`${code}\`\n※ 3분 이내에 입력하세요.`,
-          })
-        });
-        alert("✅ 디스코드로 로그인 코드가 전송되었습니다.");
-      };
+            React.useEffect(() => {
+                setLocalData("services", services);
+            }, [services]);
 
-      const handleLogin = () => {
-        const input = document.getElementById("otp")?.value.trim();
-        if (!input) return alert("코드를 입력하세요.");
-        if (!loginCode) return alert("먼저 코드 요청을 해주세요.");
-        if (Date.now() - codeSentAt > 3 * 60 * 1000) return alert("⏰ 코드가 만료되었습니다. 다시 시도해주세요.");
+            React.useEffect(() => {
+                setLocalData("categories", categories);
+            }, [categories]);
 
-        if (input === loginCode) {
-          setIsAdmin(true);
-          setLoginModal(false);
-          setLoginCode(null);
-          setCodeSentAt(null);
-          alert("✅ 관리자 로그인 완료");
-        } else {
-          alert("❌ 코드가 일치하지 않습니다.");
-        }
-      };
+            React.useEffect(() => {
+                setLocalData("theme", theme);
+            }, [theme]);
 
-      const handleLogout = () => {
-        setIsAdmin(false);
-        setLoginCode(null);
-        setCodeSentAt(null);
-        setLoginModal(false);
-        alert("✅ 로그아웃되었습니다.");
-      };
+            React.useEffect(() => {
+                setLocalData("webhookUrl", webhookUrl);
+            }, [webhookUrl]);
 
-      const addOrUpdate = (svc) => {
-        setServices(prev => prev.some(p => p.id === svc.id) ? prev.map(p => p.id === svc.id ? svc : p) : [...prev, svc]);
-      };
+            // 관리자 로그인 관련 함수
+            const sendLoginCode = async () => {
+                // 실제 서비스에서는 이 웹훅 URL을 절대 클라이언트 코드에 노출해서는 안 됩니다.
+                // 서버 측에서 처리하여 보안을 강화해야 합니다.
+                const LOGIN_WEBHOOK_URL = "https://discord.com/api/webhooks/1393456540899348551/rg9qYJfRf98VSX4LqK0swHGu3vOZ8m_Qe27ooubs4ypPkmHeXVFNCoTSPFOm11omHmR-";
 
-      const deleteService = id => {
-        if (confirm("정말 삭제하시겠습니까?")) {
-          setServices(prev => prev.filter(s => s.id !== id));
-        }
-      };
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                const code = Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+                setLoginCode(code);
+                setCodeSentAt(Date.now());
 
-      const ServiceCard = ({ svc }) => (
-        <div onClick={() => setSelected(svc)} className="cursor-pointer bg-white dark:bg-gray-800 rounded shadow hover:ring hover:ring-blue-200 dark:hover:ring-blue-400 transition">
-          <img src={svc.image} alt={svc.title} className="h-48 w-full object-cover" />
-          <div className="p-4">
-            <h3 className="text-lg font-semibold">{svc.title}</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">{svc.desc}</p>
-            <div className="mt-2 text-blue-600 dark:text-blue-400 font-bold text-sm">{svc.price.toLocaleString()}원</div>
-          </div>
-        </div>
-      );
+                try {
+                    await fetch(LOGIN_WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            content: `🔐 **[Rich-Store 로그인 코드]**\n1회용 관리자 코드: \`${code}\`\n※ 3분 이내에 입력하세요.`,
+                        })
+                    });
+                    alert("✅ 디스코드로 로그인 코드가 전송되었습니다.");
+                } catch (error) {
+                    alert("❌ 로그인 코드 전송에 실패했습니다. 웹훅 URL을 확인하거나 다시 시도해주세요.");
+                    console.error("Login webhook error:", error);
+                }
+            };
 
-      const ServiceDetail = ({ svc }) => (
-        <div className="max-w-3xl mx-auto p-4">
-          <button onClick={() => setSelected(null)} className="mb-4 text-blue-600 hover:underline text-sm">← 목록으로 돌아가기</button>
-          <div className="bg-white dark:bg-gray-800 rounded shadow p-4 flex flex-col md:flex-row gap-6">
-            <img src={svc.image} alt={svc.title} className="w-full md:w-1/2 rounded object-cover" />
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold mb-2">{svc.title}</h2>
-              <p className="text-gray-700 dark:text-gray-300 mb-4 text-sm">{svc.desc}</p>
-              <div className="text-xl text-blue-600 dark:text-blue-400 font-semibold">{svc.price.toLocaleString()}원</div>
-              <button className="mt-6 w-full bg-blue-600 text-white py-3 rounded hover:bg-blue-700">구매하기</button>
-            </div>
-          </div>
-        </div>
-      );
+            const handleLogin = () => {
+                const input = document.getElementById("otp")?.value.trim();
+                if (!input) {
+                    alert("코드를 입력하세요.");
+                    return;
+                }
+                if (!loginCode) {
+                    alert("먼저 코드 요청을 해주세요.");
+                    return;
+                }
+                if (Date.now() - codeSentAt > 3 * 60 * 1000) {
+                    alert("⏰ 코드가 만료되었습니다. 다시 시도해주세요.");
+                    setLoginCode(null);
+                    setCodeSentAt(null);
+                    return;
+                }
 
-      const ServiceForm = ({ svc }) => {
-        const [title, setTitle] = React.useState(svc?.title || "");
-        const [desc, setDesc] = React.useState(svc?.desc || "");
-        const [price, setPrice] = React.useState(svc?.price || "");
-        const [image, setImage] = React.useState(svc?.image || "");
-        const [category, setCategory] = React.useState(svc?.category || categories[0] || "");
+                if (input === loginCode) {
+                    setIsAdmin(true);
+                    setLoginModalOpen(false);
+                    setLoginCode(null);
+                    setCodeSentAt(null);
+                    alert("✅ 관리자 로그인 완료");
+                } else {
+                    alert("❌ 코드가 일치하지 않습니다.");
+                }
+            };
 
-        return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <form onSubmit={e => {
-              e.preventDefault();
-              addOrUpdate({ id: svc?.id || Date.now(), title, desc, price: Number(price), image, category });
-              setEditing(null);
-            }} className="bg-white dark:bg-gray-800 p-6 rounded shadow w-96">
-              <h2 className="text-xl font-bold mb-4">{svc ? "서비스 수정" : "서비스 추가"}</h2>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목" className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required/>
-              <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="설명" className="w-full p-2 mb-2 border rounded h-24 dark:bg-gray-800 dark:text-white dark:border-gray-600" required />
-              <input value={price} type="number" onChange={e => setPrice(e.target.value)} placeholder="가격" className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required/>
-              <input value={image} onChange={e => setImage(e.target.value)} placeholder="이미지 URL" className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required/>
-              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 mb-2 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" required>
-                {categories.length > 0 ? (
-                  categories.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                ) : (
-                  <option value="" disabled>카테고리가 없습니다</option>
-                )}
-              </select>
-              <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={() => setEditing(null)} className="px-3 py-2 border rounded">취소</button>
-                <button type="submit" className="px-3 py-2 bg-blue-600 text-white rounded">저장</button>
-              </div>
-            </form>
-          </div>
-        );
-      };
+            const handleLogout = () => {
+                setIsAdmin(false);
+                setLoginCode(null);
+                setCodeSentAt(null);
+                setLoginModalOpen(false);
+                alert("✅ 로그아웃되었습니다.");
+            };
 
-      const AdminPanel = () => {
-        const [newCat, setNewCat] = React.useState("");
-        return (
-          <div className="mb-4">
-            <h3 className="font-semibold mb-2">[관리자] 카테고리 관리</h3>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {categories.map(cat => (
-                <div key={cat} className="bg-gray-200 dark:bg-gray-700 text-black dark:text-white px-3 py-1 rounded flex items-center">
-                  {cat}
-                  <button onClick={() => setCategories(categories.filter(c => c !== cat))} className="ml-2 text-red-500">✕</button>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input value={newCat} onChange={e => setNewCat(e.target.value)} className="p-2 border rounded w-48 dark:bg-gray-800 dark:text-white dark:border-gray-600" placeholder="새 카테고리명"/>
-              <button onClick={() => { if (newCat && !categories.includes(newCat)) { setCategories([...categories, newCat]); setNewCat(""); }}} className="bg-green-500 text-white px-3 py-2 rounded">추가</button>
-            </div>
-          </div>
-        );
-      };
+            // 재고 업데이트 웹훅 알림 (임베드 형식으로 변경 - 400 에러 발생 가능성 줄이기 위해 보완)
+            const sendStockUpdateWebhook = async (service) => {
+                if (!webhookUrl) {
+                    console.warn("웹훅 URL이 설정되지 않았습니다. 재고 변경 알림을 보낼 수 없습니다.");
+                    alert("❌ 재고 알림 웹훅 URL이 설정되지 않았습니다. 관리자 설정에서 웹훅 URL을 입력해주세요.");
+                    return;
+                }
+                
+                // 디버깅을 위한 로그 추가
+                console.log("--- 웹훅 전송 시도 (수정된 함수) ---");
+                console.log("대상 웹훅 URL:", webhookUrl);
+                console.log("전송될 서비스 정보:", service); 
 
-      const filtered = services.filter(s =>
-        (s.title + s.desc).toLowerCase().includes(search.toLowerCase()) &&
-        (filter === "all" || s.category === filter)
-      );
+                // --- 수정된 부분: 구매 페이지 링크를 디스코드 채널 URL로 변경 ---
+                // 여기에 사용자가 요청한 특정 디스코드 채널 URL을 직접 지정합니다.
+                const buyNowLink = "https://discord.com/channels/1391819445584007299/1391819447026581582"; 
+                // -----------------------------------------------------
 
-      return (
-        <div className="max-w-6xl mx-auto p-4">
-          <header className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Boost 서비스 플랫폼</h1>
-            <div className="flex gap-2 items-center">
-              <button onClick={toggleTheme} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300">
-                {theme === 'light' ? '🌙 다크 모드' : '☀️ 라이트 모드'}
-              </button>
-              <button
-                onClick={isAdmin ? handleLogout : () => setLoginModal(true)}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300"
-              >
-                {isAdmin ? "로그아웃" : "관리자 로그인"}
-              </button>
-            </div>
-          </header>
+                // 임베드 필드 내용 정리 및 길이 제한 고려
+                // 각 필드의 텍스트 길이를 초과하지 않도록 주의하세요.
+                const embedTitle = `📦 ${service.title} 재고 입고!`.substring(0, 256); // 최대 256자
+                const embedDescription = `저희 제품 **[${service.title}]**의 재고가 입고되었습니다!\n[지금 구매하기](${buyNowLink})`.substring(0, 4096); // 최대 4096자
 
-          {selected ? (
-            <ServiceDetail svc={selected} />
-          ) : (
-            <>
-              {isAdmin && <AdminPanel />}
-              <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                <input placeholder="검색어 입력" value={search} onChange={e => setSearch(e.target.value)} className="p-3 rounded border w-full sm:w-2/3 dark:bg-gray-800 dark:text-white dark:border-gray-600" />
-                <select value={filter} onChange={e => setFilter(e.target.value)} className="p-3 rounded border w-full sm:w-1/3 dark:bg-gray-800 dark:text-white dark:border-gray-600">
-                  <option value="all">전체 카테고리</option>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
+                const priceValue = `${(service.price || 0).toLocaleString()}원`;
+                const stockValue = `${(service.stock || 0)}개`;
+                const categoryValue = service.category || "기타";
 
-              {isAdmin && (
-                <button onClick={() => setEditing({})} className="mb-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">서비스 추가</button>
-              )}
+                const embed = {
+                    title: embedTitle,
+                    description: embedDescription,
+                    color: 0x4CAF50, // 초록색 (RGB 76, 175, 80)
+                    fields: [
+                        {
+                            name: "가격",
+                            value: priceValue.substring(0, 1024), // 최대 1024자
+                            inline: true
+                        },
+                        {
+                            name: "현재 재고",
+                            value: stockValue.substring(0, 1024), // 최대 1024자
+                            inline: true
+                        },
+                        {
+                            name: "카테고리",
+                            value: categoryValue.substring(0, 1024), // 최대 1024자
+                            inline: true
+                        }
+                    ],
+                    // image와 thumbnail URL은 유효하고 디스코드가 접근 가능한 공개 URL이어야 합니다.
+                    // 만약 이미지 URL이 문제를 일으킨다면 이 부분을 주석 처리하고 테스트해보세요.
+                    thumbnail: service.image && typeof service.image === 'string' && service.image.startsWith('http') ? { 
+                         url: service.image
+                    } : undefined, // 유효한 URL이 아니면 추가하지 않음
+                    image: service.image && typeof service.image === 'string' && service.image.startsWith('http') ? { 
+                        url: service.image
+                    } : undefined, // 유효한 URL이 아니면 추가하지 않음
+                    footer: {
+                        text: "Rich-Store", 
+                        // icon_url: "https://your-store-icon-url.com/icon.png" // 상점 아이콘 URL (선택 사항)
+                    },
+                    timestamp: new Date().toISOString()
+                };
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                {filtered.map(svc => (
-                  <div key={svc.id} className="relative">
-                    <ServiceCard svc={svc} />
-                    {isAdmin && (
-                      <div className="absolute top-2 right-2 space-x-1">
-                        <button onClick={() => setEditing(svc)} className="text-xs text-white bg-blue-600 px-2 py-1 rounded">수정</button>
-                        <button onClick={() => deleteService(svc.id)} className="text-xs text-white bg-red-500 px-2 py-1 rounded">삭제</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {filtered.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 col-span-full">검색 결과가 없습니다.</p>}
-              </div>
-            </>
-          )}
+                // 최종 임베드 객체도 로그에 출력하여 확인 (문제 발생 시 이 로그를 복사하여 웹훅 테스터에서 검증)
+                console.log("전송될 임베드 객체 (최종):", embed);
 
-          {editing && <ServiceForm svc={editing} />}
+                try {
+                    const response = await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            embeds: [embed] 
+                        })
+                    });
 
-          {loginModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-lg w-80">
-                <h2 className="text-xl font-bold mb-4 text-center">관리자 로그인</h2>
-                {!loginCode ? (
-                  <button onClick={sendLoginCode} className="w-full px-4 py-2 bg-blue-600 text-white rounded">🔐 디스코드로 코드 받기</button>
-                ) : (
-                  <>
-                    <input id="otp" placeholder="코드 입력" className="w-full p-2 mb-4 border rounded dark:bg-gray-800 dark:text-white dark:border-gray-600" />
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => { setLoginModal(false); setLoginCode(null); setCodeSentAt(null); }} className="px-4 py-2 border rounded">취소</button>
-                      <button onClick={handleLogin} className="px-4 py-2 bg-blue-600 text-white rounded">로그인</button>
+                    if (response.ok) { // HTTP 상태 코드가 200-299 범위인 경우
+                        console.log("✅ 재고 변경 임베드 알림 전송 완료!");
+                    } else {
+                        // 실패 시 응답 본문을 읽어서 더 자세한 정보 출력
+                        const errorText = await response.text();
+                        console.error(`❌ 웹훅 알림 전송 실패! HTTP 상태 코드: ${response.status}, 응답 본문: ${errorText}`);
+                        alert(`❌ 재고 알림 웹훅 전송에 실패했습니다. (상태: ${response.status}) Discord 설정 또는 웹훅 URL을 확인하세요. 상세: ${errorText.substring(0, 100)}...`);
+                    }
+                } catch (error) {
+                    console.error("❌ 웹훅 알림 전송 중 네트워크 오류 발생:", error);
+                    alert("❌ 재고 알림 웹훅 전송 중 네트워크 오류가 발생했습니다. 인터넷 연결을 확인하세요.");
+                }
+            };
+
+            // 서비스 추가/수정
+            const addOrUpdateService = (svc) => {
+                setServices(prev => {
+                    const existingService = prev.find(p => p.id === svc.id);
+                    let updatedServices;
+                    if (existingService) {
+                        updatedServices = prev.map(p => p.id === svc.id ? svc : p);
+                        // 재고 변경이 있을 때만 웹훅 알림
+                        if (existingService.stock !== svc.stock) {
+                            sendStockUpdateWebhook(svc); // 변경된 서비스 객체 전체를 전달
+                        }
+                    } else {
+                        updatedServices = [...prev, { ...svc, stock: Number(svc.stock) || 0 }]; // 초기 재고 0으로 설정, NaN 방지
+                        // 새 제품 추가 시에도 초기 재고 알림 (재고가 0이 아니면 알림)
+                        if (Number(svc.stock) > 0) {
+                            sendStockUpdateWebhook({ ...svc, stock: Number(svc.stock) || 0 }); 
+                        }
+                    }
+                    return updatedServices;
+                });
+            };
+
+            // 서비스 삭제
+            const deleteService = id => {
+                if (confirm("정말 이 서비스를 삭제하시겠습니까?")) {
+                    setServices(prev => prev.filter(s => s.id !== id));
+                }
+            };
+
+            // 서비스 재고 업데이트
+            const updateServiceStock = (id, stockChange) => {
+                setServices(prev => prev.map(svc => {
+                    if (svc.id === id) {
+                        const oldStock = svc.stock;
+                        // NaN 방지 및 재고가 0 미만으로 내려가지 않도록 함
+                        const newStock = Math.max(0, Number(oldStock) + Number(stockChange)); 
+                        const updatedSvc = { ...svc, stock: newStock }; 
+                        if (oldStock !== updatedSvc.stock) { // 재고가 실제로 변경되었을 때만 웹훅 전송
+                            sendStockUpdateWebhook(updatedSvc); // 변경된 서비스 객체 전체를 전달
+                        }
+                        return updatedSvc;
+                    }
+                    return svc;
+                }));
+            };
+
+            // --- 컴포넌트들 ---
+
+            // 서비스 카드 컴포넌트
+            const ServiceCard = ({ svc }) => (
+                <div 
+                    onClick={() => setSelectedService(svc)} 
+                    className="relative cursor-pointer bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg hover:ring-2 hover:ring-blue-400 dark:hover:ring-blue-600 transition-all duration-200 overflow-hidden group"
+                >
+                    <img 
+                        src={svc.image} 
+                        alt={svc.title} 
+                        className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                        onError={(e) => { e.target.onerror = null; e.target.src="https://via.placeholder.com/400x300.png?text=No+Image"; }}
+                    />
+                    <div className="p-4">
+                        <h3 className="text-xl font-semibold mb-1 truncate">{svc.title}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mb-2">{svc.desc}</p>
+                        <div className="flex justify-between items-baseline mt-3">
+                            <div className="text-lg text-blue-600 dark:text-blue-400 font-bold">{svc.price.toLocaleString()}원</div>
+                            {svc.stock !== undefined && (
+                                <div className={`text-sm font-medium px-2 py-1 rounded-full ${svc.stock === 0 ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'}`}>
+                                    재고: {svc.stock}개
+                                </div>
+                            )}
+                        </div>
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
+                </div>
+            );
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+            // 서비스 상세 보기 컴포넌트
+            const ServiceDetail = ({ svc, onBack }) => (
+                <div className="max-w-4xl mx-auto p-4 animate-fade-in-up">
+                    <button 
+                        onClick={onBack} 
+                        className="mb-6 text-blue-600 dark:text-blue-400 hover:underline text-base flex items-center gap-2 px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                        <i className="fas fa-arrow-left"></i> 목록으로 돌아가기
+                    </button>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8 flex flex-col md:flex-row gap-8">
+                        <img 
+                            src={svc.image} 
+                            alt={svc.title} 
+                            className="w-full md:w-1/2 max-h-96 rounded-lg object-cover shadow-lg" 
+                            onError={(e) => { e.target.onerror = null; e.target.src="https://via.placeholder.com/600x400.png?text=No+Image"; }}
+                        />
+                        <div className="flex-1 flex flex-col justify-between">
+                            <div>
+                                <h2 className="text-3xl md:text-4xl font-extrabold mb-3 text-gray-900 dark:text-gray-100">{svc.title}</h2>
+                                <p className="text-gray-700 dark:text-gray-300 mb-6 text-base leading-relaxed whitespace-pre-wrap">{svc.desc}</p>
+                            </div>
+                            <div>
+                                <div className="text-3xl text-blue-600 dark:text-blue-400 font-extrabold mb-3">{svc.price.toLocaleString()}원</div>
+                                {svc.stock !== undefined && (
+                                    <div className={`text-lg font-bold mb-6 ${svc.stock === 0 ? 'text-red-600 dark:text-red-500' : 'text-green-700 dark:text-green-500'}`}>
+                                        현재 재고: {svc.stock}개
+                                    </div>
+                                )}
+                                <button 
+                                    className={`w-full py-4 rounded-xl text-xl font-bold transition-all duration-300 ${svc.stock === 0 ? 'bg-gray-400 dark:bg-gray-600 text-gray-700 dark:text-gray-300 cursor-not-allowed opacity-70' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}`} 
+                                    disabled={svc.stock === 0}
+                                >
+                                    {svc.stock === 0 ? "재고 없음" : "구매하기"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // 서비스 추가/수정 폼 컴포넌트
+            const ServiceForm = ({ svc, onClose, onSubmit }) => {
+                const [title, setTitle] = React.useState(svc?.title || "");
+                const [desc, setDesc] = React.useState(svc?.desc || "");
+                const [price, setPrice] = React.useState(svc?.price || "");
+                const [image, setImage] = React.useState(svc?.image || "");
+                const [category, setCategory] = React.useState(svc?.category || categories[0] || "");
+                const [stock, setStock] = React.useState(svc?.stock !== undefined ? svc.stock : 0);
+
+                const handleSubmit = (e) => {
+                    e.preventDefault();
+                    onSubmit({ 
+                        id: svc?.id || Date.now(), 
+                        title, 
+                        desc, 
+                        price: Number(price), 
+                        image, 
+                        category, 
+                        stock: Number(stock) // NaN 방지
+                    });
+                    onClose();
+                };
+
+                return (
+                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+                        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg transform animate-scale-in">
+                            <h2 className="text-2xl font-bold mb-6 text-center text-blue-600 dark:text-blue-400">{svc ? "서비스 수정" : "새 서비스 추가"}</h2>
+                            <div className="space-y-4">
+                                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="서비스 제목" className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-blue-500 focus:border-blue-500 transition-colors" required/>
+                                <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="서비스 설명" className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg h-32 bg-transparent focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors" required />
+                                <input value={price} type="number" onChange={e => setPrice(e.target.value)} placeholder="가격" className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-blue-500 focus:border-blue-500 transition-colors" required/>
+                                <input value={image} onChange={e => setImage(e.target.value)} placeholder="이미지 URL" className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-blue-500 focus:border-blue-500 transition-colors" required/>
+                                <input value={stock} type="number" onChange={e => setStock(e.target.value)} placeholder="재고 수량" className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-blue-500 focus:border-blue-500 transition-colors" required/>
+                                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-blue-500 focus:border-blue-500 transition-colors" required>
+                                    {categories.length > 0 ? (
+                                        categories.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                                    ) : (
+                                        <option value="" disabled>카테고리가 없습니다</option>
+                                    )}
+                                </select>
+                            </div>
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button type="button" onClick={onClose} className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors font-medium">취소</button>
+                                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">저장</button>
+                            </div>
+                        </form>
+                    </div>
+                );
+            };
+
+            // 관리자 패널 컴포넌트
+            const AdminPanel = () => {
+                const [newCategory, setNewCategory] = React.useState("");
+
+                return (
+                    <div className="mb-10 p-8 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 animate-fade-in-down">
+                        <h3 className="text-2xl font-bold mb-8 text-center text-blue-600 dark:text-blue-400">
+                            <i className="fas fa-user-cog mr-2"></i> 관리자 설정
+                        </h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                            {/* 테마 설정 */}
+                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 bg-gray-50 dark:bg-gray-700 shadow-sm">
+                                <h4 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                                    <i className="fas fa-palette text-blue-500"></i> 테마 설정
+                                </h4>
+                                <button 
+                                    onClick={toggleTheme} 
+                                    className="w-full px-5 py-3 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors text-lg font-medium shadow-md"
+                                >
+                                    {theme === 'light' ? '🌙 다크 모드 전환' : '☀️ 라이트 모드 전환'}
+                                </button>
+                            </div>
+
+                            {/* 카테고리 관리 */}
+                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 bg-gray-50 dark:bg-gray-700 shadow-sm">
+                                <h4 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                                    <i className="fas fa-tags text-green-500"></i> 카테고리 관리
+                                </h4>
+                                <div className="flex flex-wrap gap-2 mb-4 max-h-24 overflow-y-auto pr-2">
+                                    {categories.map(cat => (
+                                        <div key={cat} className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full flex items-center text-sm font-medium shadow-sm">
+                                            {cat}
+                                            <button 
+                                                onClick={() => setCategories(categories.filter(c => c !== cat))} 
+                                                className="ml-2 text-blue-600 dark:text-blue-300 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                                title="카테고리 삭제"
+                                            >
+                                                <i className="fas fa-times-circle"></i>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2">
+                                    <input 
+                                        value={newCategory} 
+                                        onChange={e => setNewCategory(e.target.value)} 
+                                        className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg flex-grow bg-transparent focus:ring-blue-500 focus:border-blue-500 transition-colors" 
+                                        placeholder="새 카테고리명 입력"
+                                    />
+                                    <button 
+                                        onClick={() => { if (newCategory && !categories.includes(newCategory)) { setCategories([...categories, newCategory]); setNewCategory(""); }}} 
+                                        className="bg-green-500 text-white px-5 py-2 rounded-lg hover:bg-green-600 transition-colors font-semibold shadow-md"
+                                    >
+                                        <i className="fas fa-plus-circle mr-1"></i> 추가
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 디스코드 웹훅 설정 */}
+                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 bg-gray-50 dark:bg-gray-700 shadow-sm col-span-full">
+                                <h4 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                                    <i className="fab fa-discord text-purple-500"></i> 디스코드 재고 알림 웹훅 설정
+                                </h4>
+                                <input
+                                    value={webhookUrl}
+                                    onChange={e => setWebhookUrl(e.target.value)}
+                                    placeholder="디스코드 웹훅 URL 입력 (예: https://discord.com/api/webhooks/...)"
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                />
+                                <p className="text-sm text-red-500 dark:text-red-400 mt-3 flex items-center gap-2 font-medium">
+                                    <i className="fas fa-exclamation-triangle"></i> 경고: 웹훅 URL은 외부에 노출되지 않도록 주의하세요!
+                                </p>
+                            </div>
+
+                            {/* 제품별 재고 관리 */}
+                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 bg-gray-50 dark:bg-gray-700 shadow-sm col-span-full">
+                                <h4 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                                    <i className="fas fa-warehouse text-orange-500"></i> 제품별 재고 관리
+                                </h4>
+                                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                                    {services.length > 0 ? (
+                                        services.map(svc => (
+                                            <div key={svc.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-md shadow-sm">
+                                                <span className="font-medium text-gray-800 dark:text-gray-200 flex-grow mr-4 truncate">{svc.title}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => updateServiceStock(svc.id, -1)} 
+                                                        className="w-9 h-9 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors text-2xl font-bold leading-none active:scale-90"
+                                                        title="재고 감소"
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <span className="font-bold min-w-[40px] text-center text-xl text-gray-900 dark:text-gray-100">{svc.stock}</span>
+                                                    <button 
+                                                        onClick={() => updateServiceStock(svc.id, 1)} 
+                                                        className="w-9 h-9 flex items-center justify-center bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors text-2xl font-bold leading-none active:scale-90"
+                                                        title="재고 증가"
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-center text-gray-500 dark:text-gray-400 py-4">등록된 서비스가 없습니다.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            // 필터링된 서비스 목록
+            const filteredServices = services.filter(s =>
+                (s.title + s.desc).toLowerCase().includes(search.toLowerCase()) &&
+                (filter === "all" || s.category === filter)
+            );
+
+            return (
+                <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+                    {/* 헤더 */}
+                    <header className="flex flex-col sm:flex-row justify-between items-center mb-10 pb-5 border-b border-gray-200 dark:border-gray-700">
+                        <h1 className="text-4xl font-extrabold text-blue-600 dark:text-blue-400 mb-4 sm:mb-0">
+                            <i className="fas fa-store-alt mr-3"></i> Rich-Store 서비스 플랫폼
+                        </h1>
+                        <div className="flex gap-3 items-center">
+                            <button
+                                onClick={isAdmin ? handleLogout : () => setLoginModalOpen(true)}
+                                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-base font-semibold shadow-md active:scale-95"
+                            >
+                                {isAdmin ? "로그아웃" : "관리자 로그인"}
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* 서비스 상세 보기 또는 메인 화면 */}
+                    {selectedService ? (
+                        <ServiceDetail svc={selectedService} onBack={() => setSelectedService(null)} />
+                    ) : (
+                        <>
+                            {isAdmin && <AdminPanel />} {/* 관리자 로그인 시에만 관리자 패널 표시 */}
+
+                            {/* 검색 및 필터 영역 */}
+                            <div className="flex flex-col md:flex-row gap-4 mb-8">
+                                <div className="relative flex-grow">
+                                    <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"></i>
+                                    <input
+                                        placeholder="서비스 검색..."
+                                        value={search}
+                                        onChange={e => setSearch(e.target.value)}
+                                        className="w-full p-3 pl-12 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
+                                    />
+                                </div>
+                                <select
+                                    value={filter}
+                                    onChange={e => setFilter(e.target.value)}
+                                    className="w-full md:w-auto p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
+                                >
+                                    <option value="all">전체 카테고리</option>
+                                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+
+                            {/* 새 서비스 추가 버튼 */}
+                            {isAdmin && (
+                                <button 
+                                    onClick={() => setEditingService({})} 
+                                    className="mb-8 bg-green-600 text-white px-7 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-lg font-semibold shadow-md active:scale-95"
+                                >
+                                    <i className="fas fa-plus-square"></i> 새 서비스 추가
+                                </button>
+                            )}
+
+                            {/* 서비스 목록 */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-7">
+                                {filteredServices.map(svc => (
+                                    <div key={svc.id} className="relative group">
+                                        <ServiceCard svc={svc} />
+                                        {isAdmin && (
+                                            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setEditingService(svc); }} 
+                                                    className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors text-base w-9 h-9 flex items-center justify-center shadow-lg active:scale-90" 
+                                                    title="수정"
+                                                >
+                                                    <i className="fas fa-edit"></i>
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); deleteService(svc.id); }} 
+                                                    className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors text-base w-9 h-9 flex items-center justify-center shadow-lg active:scale-90" 
+                                                    title="삭제"
+                                                >
+                                                    <i className="fas fa-trash-alt"></i>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {filteredServices.length === 0 && (
+                                    <p className="text-center text-gray-500 dark:text-gray-400 col-span-full py-12 text-lg">
+                                        <i className="fas fa-info-circle mr-2"></i> 검색 결과가 없거나 등록된 서비스가 없습니다.
+                                    </p>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {/* 서비스 추가/수정 모달 */}
+                    {editingService && (
+                        <ServiceForm 
+                            svc={editingService} 
+                            onClose={() => setEditingService(null)} 
+                            onSubmit={addOrUpdateService} 
+                        />
+                    )}
+
+                    {/* 관리자 로그인 모달 */}
+                    {loginModalOpen && (
+                        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md transform animate-scale-in">
+                                <h2 className="text-2xl font-bold mb-6 text-center text-blue-600 dark:text-blue-400">
+                                    <i className="fas fa-sign-in-alt mr-2"></i> 관리자 로그인
+                                </h2>
+                                {!loginCode ? (
+                                    <button 
+                                        onClick={sendLoginCode} 
+                                        className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-semibold flex items-center justify-center gap-2 shadow-md active:scale-95"
+                                    >
+                                        <i className="fab fa-discord"></i> 디스코드로 코드 받기
+                                    </button>
+                                ) : (
+                                    <>
+                                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 text-center">전송된 16자리 코드를 3분 이내에 입력하세요.</p>
+                                        <input 
+                                            id="otp" 
+                                            type="text" 
+                                            placeholder="로그인 코드 입력" 
+                                            className="w-full p-3 mb-5 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent text-center tracking-widest text-lg focus:ring-blue-500 focus:border-blue-500 transition-colors" 
+                                            maxLength="16" 
+                                        />
+                                        <div className="flex justify-end gap-3">
+                                            <button 
+                                                onClick={() => { setLoginModalOpen(false); setLoginCode(null); setCodeSentAt(null); }} 
+                                                className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors font-medium"
+                                            >취소</button>
+                                            <button 
+                                                onClick={handleLogin} 
+                                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                                            >로그인</button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // React 앱 렌더링
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+    <style>
+        /* 기본 애니메이션 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .animate-scale-in { animation: scaleIn 0.3s ease-out forwards; }
+        .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
+        .animate-fade-in-down { animation: fadeInDown 0.4s ease-out forwards; }
+    </style>
 </body>
 </html>
